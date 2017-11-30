@@ -1,3 +1,10 @@
+/*
+ *  sendSMS
+ *
+ *  Send Short Message through USB connected GSM adapter
+ *
+ *  Miguel Leitao, 2015
+ */
 
 #include <stdio.h>
 #include <stdlib.h>
