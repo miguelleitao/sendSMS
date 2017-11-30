@@ -207,6 +207,8 @@ int SendSMS(char *num, char *msg) {
   return 0;
 }
 
+#ifndef _LIB_
+
 int main(int argc, char **argv) {
   if ( argc<3 ) {
 	Usage();
@@ -237,3 +239,4 @@ int main(int argc, char **argv) {
   return SendSMS(argv[argp],argv[argp+1]);
 }
 
+#endif
