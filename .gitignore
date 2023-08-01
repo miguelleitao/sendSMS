@@ -3,3 +3,4 @@ sendSMS
 *.a
 *.bak
 *.old
+dest_list.txt
