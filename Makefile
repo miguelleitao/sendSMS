@@ -2,6 +2,8 @@
 
 sendSMS: sendSMS.c
 	cc -Wall -O1 -o $@ sendSMS.c
+
+all: sendSMS lib
 	
 lib: libsendSMS.a
 
@@ -11,3 +13,8 @@ libsendSMS.a: sendSMS.o
 sendSMS.o: sendSMS.c
 	cc -Wall -O1 -c -D _LIB_ $<
 
+push:
+	git add .
+	git commit -m update
+	git push
+	

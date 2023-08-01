@@ -1,0 +1,5 @@
+sendSMS
+*.o
+*.a
+*.bak
+*.old

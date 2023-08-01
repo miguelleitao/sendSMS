@@ -117,6 +117,19 @@ int ReadOK(int fd) {
   return 0;
 }
 
+int ReadOKAT(int fd) {
+  char *res = ReadRes(fd);
+  while ( *res==' ' || *res=='\n' || *res=='\r' ) res++;
+  if ( strncmp(res,"AT",2)==0 ) {
+    // Echo is ON
+    res = ReadRes(fd);
+    while ( *res==' ' || *res=='\n' || *res=='\r' ) res++;
+  }
+  if ( strncmp(res,"OK",2)==0 ) return 1;
+  return 0;
+} 
+
+
 char *ReadString(int fd, char *goal) {
   char *res, *pres;
   do {
@@ -136,10 +149,11 @@ int SendSMS(char *num, char *msg) {
   set_interface_attribs (pd, B9600, 0);
   set_blocking(pd,1);
   fsync(pd);
-
+  usleep(100000);
   // Test modem
-  WriteCmd(pd, "AT");
-  if ( ! ReadOK(pd) ) {
+  WriteCmd(pd, "ATE0");
+  usleep(100000);
+  if ( ! ReadOKAT(pd) ) {
 	ErrorMsg("Modem not connected.");
 	close(pd);
 	return -4;
