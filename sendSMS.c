@@ -142,7 +142,8 @@ int setupModem() {
   set_blocking(pd,1);
   fsync(pd);
   usleep(10000);
-  // Test modem
+  
+  // Test modem and turn echo OFF
   WriteCmd(pd, "ATE0");
   usleep(10000);
   if ( ! ReadOKAT(pd) ) {
@@ -170,7 +171,13 @@ int setupModem() {
   return pd;
 }
 
-int sendSingleSMS(int pd, char *num, char *msg) {
+ /*!
+ *       SendSingleSMS
+ * 
+ *       Send a single message (msg) to a single receipient.
+ *       using a previoulsy prepared modem channel (pd).
+ */
+int SendSingleSMS(int pd, char *num, char *msg) {
   // Destination
   char cmd[280];
   sprintf(cmd, "AT+CMGW=\"%s\"", num);
@@ -180,7 +187,9 @@ int sendSingleSMS(int pd, char *num, char *msg) {
   // Message
   WriteCmd(pd, msg);
   WriteCmd(pd, "\032");
+  usleep(100);
 
+  // Get stored message Idx
   char *mres = ReadString(pd, "+CMGW:");
   if ( strlen(mres)<1 ) {
 	ErrorMsg("Message not written.");
@@ -193,7 +202,7 @@ int sendSingleSMS(int pd, char *num, char *msg) {
   if ( ! simul ) {
     sprintf(cmd, "AT+CMSS=%d", mnum);
     WriteCmd(pd, cmd);
-    sleep(1);
+    usleep(400000);
     mres = ReadString(pd, "+CMSS:");
     if ( strlen(mres)<1 ) {
         ErrorMsg("Message not sent.");
@@ -213,92 +222,27 @@ int sendSingleSMS(int pd, char *num, char *msg) {
   return 0;
 }
   
+  
+ /*!
+ *       SendSMS
+ * 
+ *       Send a single message (msg) to a single receipient.
+ */
 int SendSMS(char *num, char *msg) {
-	/*
-  int pd = open(DEV_PORT, O_RDWR | O_SYNC );//open(DEV_PORT, O_RDWR | O_NOCTTY | O_SYNC );
-  if ( pd<0 ) {
-        fprintf(stderr, "Error: Cannot open port '%s'\n", DEV_PORT);
-        return -1;
-  }
-  set_interface_attribs (pd, B9600, 0);
-  set_blocking(pd,1);
-  fsync(pd);
-  usleep(100000);
-  // Test modem
-  WriteCmd(pd, "ATE0");
-  usleep(100000);
-  if ( ! ReadOKAT(pd) ) {
-	ErrorMsg("Modem not connected.");
-	close(pd);
-	return -4;
-  }
-
-  // Test Network Registing
-  WriteCmd(pd, "AT+CREG");
-  if ( ! ReadOK(pd) ) {
-        ErrorMsg("Modem not registed.");
-        close(pd);
-        return -5;
-  }
-  */
   int pd = setupModem();
   if ( pd<0 ) return -1;
-/*
-  //  Set SMS text mode
-  WriteCmd(pd, "AT+CMGF=1");
-  if ( ! ReadOK(pd) ) {
-        ErrorMsg("SMS text mode not available.");
-        close(pd);
-        return -6;
-  }
 
-  // Destination
-  char cmd[280];
-  sprintf(cmd, "AT+CMGW=\"%s\"", num);
-  WriteCmd(pd, cmd);
-  ReadRes(pd);
-
-  // Message
-  WriteCmd(pd, msg);
-  WriteCmd(pd, "\032");
-
-  char *mres = ReadString(pd, "+CMGW:");
-  if ( strlen(mres)<1 ) {
-	ErrorMsg("Message not written.");
-        close(pd);
-        return -8;
-  }
-  int mnum = atoi(mres+7);
-
-  //printf("megnum:%d\n",mnum);
-
-  // Send
-  if ( ! simul ) {
-    sprintf(cmd, "AT+CMSS=%d", mnum);
-    WriteCmd(pd, cmd);
-    sleep(1);
-    mres = ReadString(pd, "+CMSS:");
-    if ( strlen(mres)<1 ) {
-        ErrorMsg("Message not sent.");
-        close(pd);
-        return -9;
-    }
-  }
-
-  // Delete
-  sprintf(cmd, "AT+CMGD=%d", mnum);
-  WriteCmd(pd, cmd);
-  if ( ! ReadOK(pd) ) {
-        ErrorMsg("Message not deleted.");
-        close(pd);
-        return -10;
-  }
-*/
-  sendSingleSMS(pd, num, msg);
+  SendSingleSMS(pd, num, msg);
   close(pd);
   return 0;
 }
 
+/*!
+ *       SendBulkSMS
+ * 
+ *       Send a single message (msg) to multiple receipients.
+ *       Receipients are passed in num_tab array of strings.
+ */
 int SendBulkSMS(char num_tab[MAX_BULK_DESTINATIONS][MAX_DESTINATION_LEN], char *msg) {
   int pd = setupModem();
   if ( pd<0 ) return -1;
@@ -309,13 +253,19 @@ int SendBulkSMS(char num_tab[MAX_BULK_DESTINATIONS][MAX_DESTINATION_LEN], char *
 	  if ( ! num || ! *num ) break;
 	  if ( debug )
 	    printf("SendBulkSMS, seeending to '%s'\n", num);
-      sendSingleSMS(pd, num, msg);
+      SendSingleSMS(pd, num, msg);
       usleep(600000);
   }
   close(pd);
   return 0;
 }
 
+/*!
+ *       SendBulkListSMS
+ * 
+ *       Send a single message (msg) to multiple receipients.
+ *       Receipients are loaded at run time from the data file identified by fname.
+ */
 int SendBulkListSMS(char *fname, char *msg) {
   char num_tab[MAX_BULK_DESTINATIONS][MAX_DESTINATION_LEN];
   int nnums = 0;
@@ -325,6 +275,7 @@ int SendBulkListSMS(char *fname, char *msg) {
     return -1;
   }
   while (fgets(num_tab[nnums], MAX_DESTINATION_LEN-2, tabd) != NULL) {  
+    if ( *num_tab[nnums]=='#' ) continue;
 	int nlen = strlen(num_tab[nnums])-1;
 	while( nlen>=0 && num_tab[nnums][nlen] == '\n' ) {
 		num_tab[nnums][nlen] = 0;
