@@ -1,5 +1,5 @@
 /*
- *  sendSMS
+ *  sendSMS.c
  *
  *  Send Short Message through USB connected GSM adapter
  *
@@ -13,6 +13,8 @@
 #include <string.h>
 #include <errno.h>
 #include <fcntl.h>
+
+#include "sendSMS.h"
 
 #define DEV_PORT	"/dev/ttyUSB1"
 
@@ -130,7 +132,7 @@ static char *ReadString(int fd, char *goal) {
   return pres;
 }
 
-static int setupModem() {
+int setupModem() {
   int pd = open(dev_port, O_RDWR | O_SYNC ); //open(DEV_PORT, O_RDWR | O_NOCTTY | O_SYNC );
   if ( pd<0 ) {
     fprintf(stderr, "Error: Cannot open port '%s'\n", dev_port);
@@ -164,6 +166,7 @@ static int setupModem() {
         close(pd);
         return -6;
   }
+  if ( debug>4 ) printf("Modem setup success.\n");
   return pd;
 }
 
@@ -296,33 +299,32 @@ int SendSMS(char *num, char *msg) {
   return 0;
 }
 
-int SendBulkSMS(char **num_tab, char *msg) {
-
+int SendBulkSMS(char num_tab[MAX_BULK_DESTINATIONS][MAX_DESTINATION_LEN], char *msg) {
   int pd = setupModem();
   if ( pd<0 ) return -1;
-
-  char *num = *num_tab;
-  while( num ) {
+  if ( debug )
+	    printf("SendBulkSMS\n");
+  for( int i=0; i<MAX_BULK_DESTINATIONS ; i++ ) {
+	  char *num = num_tab[i];
+	  if ( ! num || ! *num ) break;
 	  if ( debug )
 	    printf("SendBulkSMS, seeending to '%s'\n", num);
       sendSingleSMS(pd, num, msg);
-      num++;
-      usleep(200000);
+      usleep(600000);
   }
   close(pd);
   return 0;
 }
 
 int SendBulkListSMS(char *fname, char *msg) {
-
-  char num_tab[65][22];
+  char num_tab[MAX_BULK_DESTINATIONS][MAX_DESTINATION_LEN];
   int nnums = 0;
   FILE *tabd = fopen(fname, "r");
   if ( ! tabd ) {
     fprintf(stderr, "Error opening destination list file '%s'.\n", fname);
     return -1;
   }
-  while (fgets(num_tab[nnums], 20, tabd) != NULL) {  
+  while (fgets(num_tab[nnums], MAX_DESTINATION_LEN-2, tabd) != NULL) {  
 	int nlen = strlen(num_tab[nnums])-1;
 	while( nlen>=0 && num_tab[nnums][nlen] == '\n' ) {
 		num_tab[nnums][nlen] = 0;
@@ -334,7 +336,7 @@ int SendBulkListSMS(char *fname, char *msg) {
   }
   fclose(tabd);
   num_tab[nnums][0] = 0;
-  return SendBulkSMS((char **)num_tab, msg);
+  return SendBulkSMS(num_tab, msg);
 }
 
 #ifndef _LIB_

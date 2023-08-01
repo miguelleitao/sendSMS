@@ -1,6 +1,6 @@
 # Makefile for sendSMS
 
-sendSMS: sendSMS.c
+sendSMS: sendSMS.c sendSMS.h
 	cc -Wall -O1 -o $@ sendSMS.c
 
 all: sendSMS lib
@@ -10,7 +10,7 @@ lib: libsendSMS.a
 libsendSMS.a: sendSMS.o
 	ar r $@ $^
 	
-sendSMS.o: sendSMS.c
+sendSMS.o: sendSMS.c sendSMS.h
 	cc -Wall -O1 -c -D _LIB_ $<
 
 push:
