@@ -16,24 +16,15 @@
 
 #define DEV_PORT	"/dev/ttyUSB1"
 
+char dev_port[24] = DEV_PORT;
 int debug=1;
 int simul = 0;
 
-void Usage() {
-  printf("Usage:\n  %s [options] DestNum Mesg\n", "SendSMS");
-  printf("    Options:\n");
-  printf("      -q      Quiet\n");
-  printf("      -d      Show debug info\n");
-  printf("      -D      Show full debug info\n");
-  printf("      -s      Simulate. Do not send message.\n");
-  printf("\n");
-}
-
-void ErrorMsg(char *msg) {
+static void ErrorMsg(char *msg) {
   if ( debug ) fprintf(stderr,"Error: %s\n",msg);
 }
 
-int
+static int
 set_interface_attribs (int fd, int speed, int parity)
 {
         struct termios tty;
@@ -74,7 +65,7 @@ set_interface_attribs (int fd, int speed, int parity)
         return 0;
                                                                                          }
 
-void
+static void
 set_blocking (int fd, int should_block)
 {
         struct termios tty;
@@ -99,7 +90,7 @@ int WriteCmd(int fd, const char *msg) {
   return wr;
 }
 
-char *ReadRes(int fd) {
+static char *ReadRes(int fd) {
   static char buf[90];
   int rd;
   rd = read(fd, buf, 80);
@@ -110,14 +101,14 @@ char *ReadRes(int fd) {
   return buf;
 }
 
-int ReadOK(int fd) {
+static int ReadOK(int fd) {
   char *res = ReadRes(fd);
   while ( *res==' ' || *res=='\n' || *res=='\r' ) res++;
   if ( strncmp(res,"OK",2)==0 ) return 1;
   return 0;
 }
 
-int ReadOKAT(int fd) {
+static int ReadOKAT(int fd) {
   char *res = ReadRes(fd);
   while ( *res==' ' || *res=='\n' || *res=='\r' ) res++;
   if ( strncmp(res,"AT",2)==0 ) {
@@ -130,7 +121,7 @@ int ReadOKAT(int fd) {
 } 
 
 
-char *ReadString(int fd, char *goal) {
+static char *ReadString(int fd, char *goal) {
   char *res, *pres;
   do {
     res = ReadRes(fd);
@@ -139,8 +130,88 @@ char *ReadString(int fd, char *goal) {
   return pres;
 }
 
+static int setupModem() {
+  int pd = open(dev_port, O_RDWR | O_SYNC ); //open(DEV_PORT, O_RDWR | O_NOCTTY | O_SYNC );
+  if ( pd<0 ) {
+    fprintf(stderr, "Error: Cannot open port '%s'\n", dev_port);
+    return -1;
+  }
+  set_interface_attribs (pd, B9600, 0);
+  set_blocking(pd,1);
+  fsync(pd);
+  usleep(10000);
+  // Test modem
+  WriteCmd(pd, "ATE0");
+  usleep(10000);
+  if ( ! ReadOKAT(pd) ) {
+	ErrorMsg("Modem not connected.");
+	close(pd);
+	return -4;
+  }
+
+  // Test Network Registing
+  WriteCmd(pd, "AT+CREG");
+  if ( ! ReadOK(pd) ) {
+        ErrorMsg("Modem not registed.");
+        close(pd);
+        return -5;
+  }
+
+  //  Set SMS text mode
+  WriteCmd(pd, "AT+CMGF=1");
+  if ( ! ReadOK(pd) ) {
+        ErrorMsg("SMS text mode not available.");
+        close(pd);
+        return -6;
+  }
+  return pd;
+}
+
+int sendSingleSMS(int pd, char *num, char *msg) {
+  // Destination
+  char cmd[280];
+  sprintf(cmd, "AT+CMGW=\"%s\"", num);
+  WriteCmd(pd, cmd);
+  ReadRes(pd);
+
+  // Message
+  WriteCmd(pd, msg);
+  WriteCmd(pd, "\032");
+
+  char *mres = ReadString(pd, "+CMGW:");
+  if ( strlen(mres)<1 ) {
+	ErrorMsg("Message not written.");
+    return -8;
+  }
+  int mnum = atoi(mres+7);
+  //printf("megnum:%d\n",mnum);
+
+  // Send
+  if ( ! simul ) {
+    sprintf(cmd, "AT+CMSS=%d", mnum);
+    WriteCmd(pd, cmd);
+    sleep(1);
+    mres = ReadString(pd, "+CMSS:");
+    if ( strlen(mres)<1 ) {
+        ErrorMsg("Message not sent.");
+        return -9;
+    }
+  }
+
+  // Delete
+  sprintf(cmd, "AT+CMGD=%d", mnum);
+  WriteCmd(pd, cmd);
+  if ( ! ReadOK(pd) ) {
+        ErrorMsg("Message not deleted.");
+        return -10;
+  }
+  
+  // Success
+  return 0;
+}
   
 int SendSMS(char *num, char *msg) {
+	/*
   int pd = open(DEV_PORT, O_RDWR | O_SYNC );//open(DEV_PORT, O_RDWR | O_NOCTTY | O_SYNC );
   if ( pd<0 ) {
         fprintf(stderr, "Error: Cannot open port '%s'\n", DEV_PORT);
@@ -166,7 +237,10 @@ int SendSMS(char *num, char *msg) {
         close(pd);
         return -5;
   }
-
+  */
+  int pd = setupModem();
+  if ( pd<0 ) return -1;
+/*
   //  Set SMS text mode
   WriteCmd(pd, "AT+CMGF=1");
   if ( ! ReadOK(pd) ) {
@@ -216,12 +290,65 @@ int SendSMS(char *num, char *msg) {
         close(pd);
         return -10;
   }
-
+*/
+  sendSingleSMS(pd, num, msg);
   close(pd);
   return 0;
 }
 
+int SendBulkSMS(char **num_tab, char *msg) {
+
+  int pd = setupModem();
+  if ( pd<0 ) return -1;
+
+  char *num = *num_tab;
+  while( num ) {
+	  if ( debug )
+	    printf("SendBulkSMS, seeending to '%s'\n", num);
+      sendSingleSMS(pd, num, msg);
+      num++;
+      usleep(200000);
+  }
+  close(pd);
+  return 0;
+}
+
+int SendBulkListSMS(char *fname, char *msg) {
+
+  char num_tab[65][22];
+  int nnums = 0;
+  FILE *tabd = fopen(fname, "r");
+  if ( ! tabd ) {
+    fprintf(stderr, "Error opening destination list file '%s'.\n", fname);
+    return -1;
+  }
+  while (fgets(num_tab[nnums], 20, tabd) != NULL) {  
+	int nlen = strlen(num_tab[nnums])-1;
+	while( nlen>=0 && num_tab[nnums][nlen] == '\n' ) {
+		num_tab[nnums][nlen] = 0;
+		nlen--;
+	}
+    if ( debug )
+	  printf("SendBulkListSMS, got %d: '%s'\n", nnums, num_tab[nnums]);
+	nnums++;  
+  }
+  fclose(tabd);
+  num_tab[nnums][0] = 0;
+  return SendBulkSMS((char **)num_tab, msg);
+}
+
 #ifndef _LIB_
+
+void Usage() {
+  printf("Usage:\n  %s [options] DestNum Mesg\n", "SendSMS");
+  printf("    Options:\n");
+  printf("      -q      Quiet\n");
+  printf("      -d      Show debug info\n");
+  printf("      -D      Show full debug info\n");
+  printf("      -s      Simulate. Do not send message.\n");
+  printf("      -i dev  Device. (Default: " DEV_PORT ").\n");
+  printf("\n");
+}
 
 int main(int argc, char **argv) {
   if ( argc<3 ) {
@@ -232,24 +359,30 @@ int main(int argc, char **argv) {
   while ( argp<argc-2 && argv[argp][0]=='-' ) {
     switch (argv[argp][1]) {
       case 'd':
-	debug = 3;
-	break;
+        debug = 3;
+        break;
       case 'D':
-	debug = 5;
-	break;
+        debug = 5;
+        break;
       case 'q':
-	debug = 0;
-	break;
+        debug = 0;
+        break;
       case 's':
-	simul = 1;
-	break;
+        simul = 1;
+        break;
+      case 'i':
+        argp++;
+        strncpy(dev_port, argv[argp], 22);
+        break;
       default:
-	fprintf(stderr,"Bad option '-%c'\n", argv[argp][1]);
-	Usage();
-	return -2;
+        fprintf(stderr,"Bad option '-%c'\n", argv[argp][1]);
+        Usage();
+        return -2;
     }
     argp++;
   }
+  if ( argv[argp][0] == '@' )
+      return SendBulkListSMS(argv[argp]+1, argv[argp+1]);
   return SendSMS(argv[argp],argv[argp+1]);
 }
 
