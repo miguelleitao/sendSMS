@@ -18,9 +18,9 @@
 
 #define DEV_PORT	"/dev/ttyUSB1"
 
-char dev_port[24] = DEV_PORT;
-int debug=1;
-int simul = 0;
+static char dev_port[24] = DEV_PORT;
+static int debug=1;
+static int simul = 0;
 
 static void ErrorMsg(char *msg) {
   if ( debug ) fprintf(stderr,"Error: %s\n",msg);
