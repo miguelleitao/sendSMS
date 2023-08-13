@@ -252,7 +252,7 @@ int SendBulkSMS(char num_tab[MAX_BULK_DESTINATIONS][MAX_DESTINATION_LEN], char *
 	  char *num = num_tab[i];
 	  if ( ! num || ! *num ) break;
 	  if ( debug )
-	    printf("SendBulkSMS, sending %d bytes to '%s'\n", strlen(msg), num);
+	    printf("SendBulkSMS, sending %lu bytes to '%s'\n", strlen(msg), num);
       SendSingleSMS(pd, num, msg);
       usleep(600000);
   }
