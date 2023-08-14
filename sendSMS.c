@@ -103,13 +103,30 @@ static char *ReadRes(int fd) {
   return buf;
 }
 
+
+ /*!
+ *		ReadOK
+ * 
+ *		Read command result.
+ *		Return 1 if result=='OK'.
+ * 		0 otherwise.
+ * 		Echo is supposed to be OFF.
+ */
 static int ReadOK(int fd) {
   char *res = ReadRes(fd);
   while ( *res==' ' || *res=='\n' || *res=='\r' ) res++;
-  if ( strncmp(res,"OK",2)==0 ) return 1;
+  if ( strncmp(res, "OK", 2)==0 ) return 1;
   return 0;
 }
 
+ /*!
+ *		ReadOKAT
+ * 
+ *		Read command result.
+ *		Return 1 if result=='OK'.
+ * 		0 otherwise.
+ * 		Parses and consumes eventuale command echo.
+ */
 static int ReadOKAT(int fd) {
   char *res = ReadRes(fd);
   while ( *res==' ' || *res=='\n' || *res=='\r' ) res++;
@@ -122,13 +139,21 @@ static int ReadOKAT(int fd) {
   return 0;
 } 
 
-
+ /*!
+ *		ReadString
+ * 
+ *		Read command result from modem device fd.
+ *		Return 1 if result==goal.
+ * 		0 otherwise.
+ */
 static char *ReadString(int fd, char *goal) {
   char *res, *pres;
+  int n = 0;
   do {
     res = ReadRes(fd);
     pres = strstr(res, goal);
-  } while ( pres==NULL );
+    n++;
+  } while ( pres==NULL && n<4 );
   return pres;
 }
 
@@ -169,6 +194,32 @@ int setupModem() {
   }
   if ( debug>4 ) printf("Modem setup success.\n");
   return pd;
+}
+
+char *checkSimPin(int pd) {
+	WriteCmd(pd, "AT+CPIN?");
+	char *res = ReadString(pd, "+CPIN:");
+	if ( ! res || ! *res ) return NULL;
+	return res+6;
+}
+
+int setSimPin(int pd, const char *pin) {
+	char *cpin = checkSimPin(pd);
+	if ( ! cpin ) {
+		ErrorMsg("Checking PIN status,");
+		return 0;
+	}
+	if ( ! strcmp(cpin, "READY") ) 	// Service is Ready.
+		return 1;					// No pin required.
+	// Set PIN
+	char cmd[24];
+	sprintf(cmd, "AT+CPIN=%s", pin);
+	WriteCmd(pd, cmd);
+	if ( ! ReadOK(pd) ) {
+        ErrorMsg("PIN invalid.");
+        return 0;
+	}
+    return 2;	// Success
 }
 
  /*!
