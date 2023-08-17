@@ -128,6 +128,8 @@ static char *ReadString(int fd, char *goal) {
   do {
     res = ReadRes(fd);
     pres = strstr(res, goal);
+    if ( ! pres )
+        pres = strstr(res, "ERROR");
   } while ( pres==NULL );
   return pres;
 }
@@ -191,9 +193,9 @@ int SendSingleSMS(int pd, char *num, char *msg) {
 
   // Get stored message Idx
   char *mres = ReadString(pd, "+CMGW:");
-  if ( strlen(mres)<1 ) {
-	ErrorMsg("Message not written.");
-    return -8;
+  if ( strlen(mres)<1 || ! strncmp(mres,"ERROR",5) ) {
+      ErrorMsg("Message not written.");
+      return -8;
   }
   int mnum = atoi(mres+7);
   //printf("megnum:%d\n",mnum);
@@ -252,7 +254,7 @@ int SendBulkSMS(char num_tab[MAX_BULK_DESTINATIONS][MAX_DESTINATION_LEN], char *
 	  char *num = num_tab[i];
 	  if ( ! num || ! *num ) break;
 	  if ( debug )
-	    printf("SendBulkSMS, sending %d bytes to '%s'\n", strlen(msg), num);
+	    printf("SendBulkSMS, sending %d bytes to '%s'\n", (int)strlen(msg), num);
       SendSingleSMS(pd, num, msg);
       usleep(600000);
   }
