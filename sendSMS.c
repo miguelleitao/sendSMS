@@ -132,11 +132,15 @@ static int ReadOKAT(int fd) {
   while ( *res==' ' || *res=='\n' || *res=='\r' ) res++;
   if ( strncmp(res,"AT",2)==0 ) {
     // Echo is ON
-    res = ReadRes(fd);
+    //res = ReadRes(fd);
+    res += 2;
+    while ( *res && *res!=' ' && *res!='\n' && *res!='\r' ) res++; 
     while ( *res==' ' || *res=='\n' || *res=='\r' ) res++;
   }
+  
   if ( strncmp(res,"OK",2)==0 ) return 1;
-  return 0;
+  if ( *res ) return 0;
+  return ReadOK(fd);
 } 
 
  /*!
@@ -206,7 +210,6 @@ int setupModem() {
 	close(pd);
 	return -4;
   }
-
   // Test Network Registing
   WriteCmd(pd, "AT+CREG");
   if ( ! ReadOK(pd) ) {
