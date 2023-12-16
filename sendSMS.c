@@ -159,6 +159,34 @@ static char *ReadString(int fd, char *goal) {
   return pres;
 }
 
+int controlModem(int pd, int level) {
+	// AT+CFUN=0 turns off the USB modem.
+	// AT+CFUN=1 turns on (restarts) the USB modem.
+	char cmd[80];
+	sprintf(cmd, "AT+CFUN=%d", level);
+	WriteCmd(pd, cmd);
+    usleep(10000);
+    if ( ! ReadOKAT(pd) ) {
+	    ErrorMsg("Modem not connected.");
+	    close(pd);
+	    return -4;
+	}
+	return 0;
+}
+
+int resetModem(int pd) {
+	// ATZ
+	WriteCmd(pd, "ATZ");
+    usleep(10000);
+    if ( ! ReadOKAT(pd) ) {
+	    ErrorMsg("Modem not connected.");
+	    close(pd);
+	    return -4;
+	}
+	return 0;
+}
+
+	
 int setupModem() {
   int pd = open(dev_port, O_RDWR | O_SYNC ); //open(DEV_PORT, O_RDWR | O_NOCTTY | O_SYNC );
   if ( pd<0 ) {
@@ -194,7 +222,16 @@ int setupModem() {
         close(pd);
         return -6;
   }
-  if ( debug>4 ) printf("Modem setup success.\n");
+  if ( debug>4 ) {
+        printf("Modem setup success.\n");
+        WriteCmd(pd, "AT+CMEE=1");
+        if ( ! ReadOK(pd) ) {
+            ErrorMsg("SMS text mode not available.");
+            close(pd);
+            return -7;
+        }
+        printf("Extended error reporting mode.\n");
+  }
   return pd;
 }
 
