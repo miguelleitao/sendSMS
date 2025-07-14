@@ -96,13 +96,17 @@ static char *ReadRes(int fd) {
   static char buf[90];
   int rd;
   rd = read(fd, buf, 80);
+  if (rd < 0) {
+	if ( debug ) perror("ReadRes: read error");
+	buf[0] = '\0';
+	return buf;
+  }
   buf[rd] = 0;
   if ( rd>0 && debug>3 ) {
     printf("< %s", buf);
   }
   return buf;
 }
-
 
  /*!
  *		ReadOK
