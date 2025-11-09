@@ -129,12 +129,36 @@ static int ReadOK(int fd) {
  *		Read command result.
  *		Return 1 if result=='OK'.
  * 		0 otherwise.
- * 		Parses and consumes eventuale command echo.
+ * 		Parses and consumes eventual command echo.
  */
 static int ReadOKAT(int fd) {
   char *res = ReadRes(fd);
   while ( *res==' ' || *res=='\n' || *res=='\r' ) res++;
   if ( strncmp(res,"AT",2)==0 ) {
+    // Echo is ON
+    //res = ReadRes(fd);
+    res += 2;
+    while ( *res && *res!=' ' && *res!='\n' && *res!='\r' ) res++; 
+    while ( *res==' ' || *res=='\n' || *res=='\r' ) res++;
+  }
+  
+  if ( strncmp(res,"OK",2)==0 ) return 1;
+  if ( *res ) return 0;
+  return ReadOK(fd);
+} 
+
+/*!
+ *		ReadUntilOK
+ * 
+ *		Read command result.
+ *		Return 1 if result=='OK'.
+ * 		0 otherwise.
+ * 		Parses and consumes eventual command echo.
+ */
+static int ReadUntilOK(int fd) {
+  char *res = ReadRes(fd);
+  while ( *res==' ' || *res=='\n' || *res=='\r' ) res++;
+  while ( strncmp(res,"AT",2)==0 ) {
     // Echo is ON
     //res = ReadRes(fd);
     res += 2;
@@ -268,6 +292,8 @@ int setSimPin(int pd, const char *pin) {
     return 2;	// Success
 }
 
+
+
  /*!
  *       SendSingleSMS
  * 
@@ -318,7 +344,56 @@ int SendSingleSMS(int pd, char *num, char *msg) {
   // Success
   return 0;
 }
+ 
+ 
+ /*!
+ *       GetListSMS
+ * 
+ *       Send a single message (msg) to a single receipient.
+ *       using a previoulsy prepared modem channel (pd).
+ */
+int GetListSMS(int pd, int bSize, char *buffer) {
+  // Destination
+  char cmd[280];
+  sprintf(cmd, "AT+CMGL=\"%s\"", "ALL");
+  WriteCmd(pd, cmd);
+  //ReadRes(pd);
   
+  int len = 0;
+  int rd = -1;
+  char *buf = buffer;
+  while( rd!=0 ) {
+	  rd = read(pd, buf, bSize-len-1);
+	  if (rd < 0) {
+		if ( debug ) perror("ReadRes: read error");
+		buf[0] = '\0';
+		return len;
+	  }
+	  buf += rd;
+	  len += rd;
+  }
+  buffer[len] = 0;
+  if ( rd>0 && debug>3 ) {
+    printf("< %s", buffer);
+  }
+  return len;
+}
+
+  
+int DeleteSingleSMS(int pd, int mnum) {
+  // Delete
+  char cmd[280];
+  sprintf(cmd, "AT+CMGD=%d", mnum);
+  WriteCmd(pd, cmd);
+  if ( ! ReadOK(pd) ) {
+        ErrorMsg("Message not deleted.");
+        return -10;
+  }
+  // Success
+  return 0;
+}
+
+ 
   
  /*!
  *       SendSMS
@@ -333,6 +408,29 @@ int SendSMS(char *num, char *msg) {
   close(pd);
   return 0;
 }
+
+ /*!
+ *       DeleteSMS
+ * 
+ *       Delete a single message (num).
+ */
+int DeleteSMS(char *num) {
+  int pd = setupModem();
+  if ( pd<0 ) return -1;
+  DeleteSingleSMS(pd, atoi(num));
+  close(pd);
+  return 0;
+}
+
+int ListSMS() {
+  int pd = setupModem();
+  if ( pd<0 ) return -1;
+  char smsText[2000];
+  int res = GetListSMS(pd, 2000, smsText);
+  puts(smsText);
+  return res;
+}
+
 
 /*!
  *       SendBulkSMS
@@ -389,6 +487,8 @@ int SendBulkListSMS(char *fname, char *msg) {
   return SendBulkSMS(num_tab, msg);
 }
 
+
+
 #ifndef _LIB_
 
 void Usage() {
@@ -426,6 +526,8 @@ int main(int argc, char **argv) {
         argp++;
         strncpy(dev_port, argv[argp], 22);
         break;
+      case 'l':
+        return ListSMS();
       default:
         fprintf(stderr,"Bad option '-%c'\n", argv[argp][1]);
         Usage();
