@@ -19,7 +19,8 @@
 #define DEV_PORT	"/dev/ttyUSB1"
 
 static char dev_port[24] = DEV_PORT;
-static int debug=1;
+static int debug = 1;
+static int force_reset = 0;
 static int simul = 0;
 
 static void ErrorMsg(char *msg) {
@@ -80,21 +81,30 @@ set_blocking (int fd, int should_block)
         tty.c_cc[VMIN]  = should_block ? 1 : 0;
         tty.c_cc[VTIME] = 5;            // 0.5 seconds read timeout
 
+        tty.c_lflag &= ~ICANON; /* Set non-canonical mode */
+
         if (tcsetattr (fd, TCSANOW, &tty) != 0)
                 fprintf(stderr, "error %d setting term attributes", errno);
 }
 
+int usbReset() {
+ return system("usbreset 19d2:0117");
+} 
+
 int WriteCmd(int fd, const char *msg) {
   int wr = 0;
-  if ( debug>2 ) printf("> %s\n", msg );
+  if ( debug>2 ) printf("> %s", msg );
   wr = write(fd, msg, strlen(msg));
   wr += write(fd, "\r\n", 2);
+  if ( debug>2 ) printf(".\n");
   return wr;
 }
 
 static char *ReadRes(int fd) {
   static char buf[90];
   int rd;
+  if ( debug>3 )
+    printf("Reading...\n");
   rd = read(fd, buf, 80);
   if (rd < 0) {
 	if ( debug ) perror("ReadRes: read error");
@@ -220,24 +230,32 @@ int resetModem(int pd) {
 
 	
 int setupModem() {
-  int pd = open(dev_port, O_RDWR | O_SYNC ); //open(DEV_PORT, O_RDWR | O_NOCTTY | O_SYNC );
-  if ( pd<0 ) {
-    fprintf(stderr, "Error: Cannot open port '%s'\n", dev_port);
-    return -1;
-  }
-  set_interface_attribs (pd, B9600, 0);
-  set_blocking(pd,1);
-  fsync(pd);
-  usleep(10000);
+  int nRun;
+  int pd = -1;
+  for( nRun=0 ; nRun<2 ; nRun++ ) {
+    pd = open(dev_port, O_RDWR | O_SYNC ); //open(DEV_PORT, O_RDWR | O_NOCTTY | O_SYNC );
+    if ( pd>=0 ) {
+      set_interface_attribs (pd, B9600, 0);
+      set_blocking(pd,1);
+      fsync(pd);
+      usleep(10000);
   
-  // Test modem and turn echo OFF
-  WriteCmd(pd, "ATE0");
-  usleep(10000);
-  if ( ! ReadOKAT(pd) ) {
-	ErrorMsg("Modem not connected.");
-	close(pd);
-	return -4;
+      // Test modem and turn echo OFF
+      WriteCmd(pd, "ATE0");
+      usleep(10000);
+      if (  ReadOKAT(pd) ) break;
+      ErrorMsg("Modem not working.");
+      close(pd);
+    }
+    else {
+        fprintf(stderr, "Error: Cannot open port '%s'\n", dev_port);
+    }
+    // Retry
+    usbReset();
+    usleep(10000);
   }
+  if  ( pd<0 ) return -4;
+
   // Test Network Registing
   WriteCmd(pd, "AT+CREG");
   if ( ! ReadOK(pd) ) {
@@ -526,6 +544,9 @@ int main(int argc, char **argv) {
         argp++;
         strncpy(dev_port, argv[argp], 22);
         break;
+      case 'f':
+	force_reset = 1;
+	break;
       case 'l':
         return ListSMS();
       default:
@@ -535,6 +556,7 @@ int main(int argc, char **argv) {
     }
     argp++;
   }
+  if ( force_reset ) usbReset();
   if ( argv[argp][0] == '@' )
       return SendBulkListSMS(argv[argp]+1, argv[argp+1]);
   return SendSMS(argv[argp],argv[argp+1]);
