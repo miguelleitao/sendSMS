@@ -445,8 +445,8 @@ int ListSMS() {
   if ( debug ) printf("List SMS\n");
   int pd = setupModem();
   if ( pd<0 ) return -1;
-  char smsText[2000];
-  int res = GetListSMS(pd, 2000, smsText);
+  char smsText[8000];
+  int res = GetListSMS(pd, 8000, smsText);
   puts(smsText);
   return res;
 }
@@ -525,12 +525,12 @@ void Usage() {
 }
 
 int main(int argc, char **argv) {
-  if ( argc<3 ) {
+  if ( argc<2 ) {
 	Usage();
 	return -1;
   }
   int argp = 1;
-  while ( argp<argc-2 && argv[argp][0]=='-' ) {
+  while ( argp<argc && argv[argp][0]=='-' ) {
     switch (argv[argp][1]) {
       case 'd':
         debug = 3;
@@ -561,6 +561,11 @@ int main(int argc, char **argv) {
     argp++;
   }
   if ( force_reset ) usbReset();
+  if ( argc<argp+2 ) {
+	ErrorMsg("Not enough parameters");
+	  Usage();
+	  return -2;
+  }
   if ( argv[argp][0] == '@' )
       return SendBulkListSMS(argv[argp]+1, argv[argp+1]);
   return SendSMS(argv[argp],argv[argp+1]);
