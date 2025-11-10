@@ -251,6 +251,7 @@ int setupModem() {
         fprintf(stderr, "Error: Cannot open port '%s'\n", dev_port);
     }
     // Retry
+    if ( debug ) fprintf(stderr, "Forcing USB Reset...\n");
     usbReset();
     usleep(10000);
   }
@@ -515,6 +516,8 @@ void Usage() {
   printf("      -q      Quiet\n");
   printf("      -d      Show debug info\n");
   printf("      -D      Show full debug info\n");
+  printf("	-l	List All SMS messages\n");
+  printf("	-f	Force previous USB reset\n");
   printf("      -s      Simulate. Do not send message.\n");
   printf("      -i dev  Device. (Default: " DEV_PORT ").\n");
   printf("\n");
