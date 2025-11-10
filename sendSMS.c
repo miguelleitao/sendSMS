@@ -442,6 +442,7 @@ int DeleteSMS(char *num) {
 }
 
 int ListSMS() {
+  if ( debug ) printf("List SMS\n");
   int pd = setupModem();
   if ( pd<0 ) return -1;
   char smsText[2000];
