@@ -18,9 +18,12 @@
 
 #define DEV_PORT	"/dev/ttyUSB1"
 
+char sendSMS_version[] = "1.0.31";
+
 static char dev_port[24] = DEV_PORT;
 static int debug = 1;
 static int force_reset = 0;
+static int list_sms = 0;
 static int simul = 0;
 
 static void ErrorMsg(char *msg) {
@@ -552,7 +555,8 @@ int main(int argc, char **argv) {
 	force_reset = 1;
 	break;
       case 'l':
-        return ListSMS();
+	list_sms = 1;
+	break;
       default:
         fprintf(stderr,"Bad option '-%c'\n", argv[argp][1]);
         Usage();
@@ -560,7 +564,9 @@ int main(int argc, char **argv) {
     }
     argp++;
   }
+  if ( debug ) printf("sendSMS v%s\n", sendSMS_version);
   if ( force_reset ) usbReset();
+  if ( list_sms ) return ListSMS();
   if ( argc<argp+2 ) {
 	ErrorMsg("Not enough parameters");
 	  Usage();
