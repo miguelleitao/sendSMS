@@ -392,8 +392,10 @@ int GetListSMS(int pd, int bSize, char *buffer) {
 		buf[0] = '\0';
 		return len;
 	  }
-	  buf += rd;
+	  if ( debug>4 ) printf("Got: '%s'\n", buf);
 	  len += rd;
+	  if ( strstr(buf, "\r\nOK\r\n") ) break;
+	  buf += rd;
   }
   buffer[len] = 0;
   if ( rd>0 && debug>3 ) {
