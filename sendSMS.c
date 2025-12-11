@@ -18,13 +18,14 @@
 
 #define DEV_PORT	"/dev/ttyUSB1"
 
-char sendSMS_version[] = "1.0.31";
+char sendSMS_version[] = "1.0.32";
 
 static char dev_port[24] = DEV_PORT;
 static int debug = 1;
 static int force_reset = 0;
 static int list_sms = 0;
 static int simul = 0;
+static int msgDeleteNum = -1;
 
 static void ErrorMsg(char *msg) {
   if ( debug ) fprintf(stderr,"Error: %s\n",msg);
@@ -436,10 +437,10 @@ int SendSMS(char *num, char *msg) {
  * 
  *       Delete a single message (num).
  */
-int DeleteSMS(char *num) {
+int DeleteSMS(int num) {
   int pd = setupModem();
   if ( pd<0 ) return -1;
-  DeleteSingleSMS(pd, atoi(num));
+  DeleteSingleSMS(pd, num);
   close(pd);
   return 0;
 }
@@ -520,9 +521,10 @@ void Usage() {
   printf("      -q      Quiet\n");
   printf("      -d      Show debug info\n");
   printf("      -D      Show full debug info\n");
-  printf("	-l	List All SMS messages\n");
-  printf("	-f	Force previous USB reset\n");
+  printf("	    -l      List All SMS messages\n");
+  printf("	    -f      Force previous USB reset\n");
   printf("      -s      Simulate. Do not send message.\n");
+  printf("      -x num  Delete message num\n");
   printf("      -i dev  Device. (Default: " DEV_PORT ").\n");
   printf("\n");
 }
@@ -552,11 +554,15 @@ int main(int argc, char **argv) {
         strncpy(dev_port, argv[argp], 22);
         break;
       case 'f':
-	force_reset = 1;
-	break;
+        force_reset = 1;
+        break;
       case 'l':
-	list_sms = 1;
-	break;
+        list_sms = 1;
+        break;
+      case 'x':
+        argp++;
+        msgDeleteNum = atoi(argv[argp]);
+        break;
       default:
         fprintf(stderr,"Bad option '-%c'\n", argv[argp][1]);
         Usage();
@@ -567,6 +573,7 @@ int main(int argc, char **argv) {
   if ( debug ) printf("sendSMS v%s\n", sendSMS_version);
   if ( force_reset ) usbReset();
   if ( list_sms ) return ListSMS();
+  if ( msgDeleteNum>0 ) return DeleteSMS(msgDeleteNum);
   if ( argc<argp+2 ) {
 	ErrorMsg("Not enough parameters");
 	  Usage();
