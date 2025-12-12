@@ -24,6 +24,7 @@ static char dev_port[24] = DEV_PORT;
 static int debug = 1;
 static int force_reset = 0;
 static int list_sms = 0;
+
 static int simul = 0;
 static int msgDeleteNum = -1;
 
@@ -62,7 +63,7 @@ set_interface_attribs (int fd, int speed, int parity)
         tty.c_cflag &= ~(PARENB | PARODD);      // shut off parity
         tty.c_cflag |= parity;
         tty.c_cflag &= ~CSTOPB;
-// 	tty.c_cflag |= CSTOPB;
+		// 	tty.c_cflag |= CSTOPB;
         tty.c_cflag &= ~CRTSCTS;
 
         if (tcsetattr (fd, TCSANOW, &tty) != 0) {
@@ -469,7 +470,8 @@ int SendBulkSMS(char num_tab[MAX_BULK_DESTINATIONS][MAX_DESTINATION_LEN], char *
   if ( pd<0 ) return -1;
   if ( debug )
 	    printf("SendBulkSMS\n");
-  for( int i=0; i<MAX_BULK_DESTINATIONS ; i++ ) {
+  int i;
+  for( i=0; i<MAX_BULK_DESTINATIONS ; i++ ) {
 	  char *num = num_tab[i];
 	  if ( ! num || ! *num ) break;
 	  if ( debug )
@@ -479,7 +481,7 @@ int SendBulkSMS(char num_tab[MAX_BULK_DESTINATIONS][MAX_DESTINATION_LEN], char *
       usleep(600000);
   }
   close(pd);
-  return 0;
+  return i;
 }
 
 /*!
