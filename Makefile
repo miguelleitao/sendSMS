@@ -20,7 +20,7 @@ push:
 
 install:
 	systemctl stop ModemManager
-	systemctl dusable ModemManager
+	systemctl disable ModemManager
 	install sendSMS
 
 	
