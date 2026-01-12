@@ -1,7 +1,7 @@
 # Makefile for sendSMS
 
 sendSMS: sendSMS.c sendSMS.h
-	cc -Wall -O1 -o $@ sendSMS.c
+	cc -Wall -Wextra -O1 -o $@ sendSMS.c
 
 all: sendSMS lib
 	
@@ -11,7 +11,7 @@ libsendSMS.a: sendSMS.o
 	ar r $@ $^
 	
 sendSMS.o: sendSMS.c sendSMS.h
-	cc -Wall -O1 -c -D _LIB_ $<
+	cc -Wall -Wextra -O1 -c -D _LIB_ $<
 
 push:
 	git add .
@@ -23,4 +23,5 @@ install:
 	systemctl disable ModemManager
 	install sendSMS
 
-	
+clean:
+	rm -rf *.o sendSMS libsendSMS.a

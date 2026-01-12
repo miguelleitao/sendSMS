@@ -18,15 +18,19 @@
 
 #define DEV_PORT	"/dev/ttyUSB1"
 
-char sendSMS_version[] = "1.0.32";
+char sendSMS_version[] = "1.0.33";
 
 static char dev_port[24] = DEV_PORT;
 static int debug = 1;
+
+
+#ifndef _LIB_
 static int force_reset = 0;
 static int list_sms = 0;
+static int msgDeleteNum = -1;
+#endif
 
 static int simul = 0;
-static int msgDeleteNum = -1;
 
 static void ErrorMsg(char *msg) {
   if ( debug ) fprintf(stderr,"Error: %s\n",msg);
