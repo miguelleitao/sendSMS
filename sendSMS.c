@@ -328,7 +328,7 @@ int setSimPin(int pd, const char *pin) {
  *       Send a single message (msg) to a single receipient.
  *       using a previoulsy prepared modem channel (pd).
  */
-int SendSingleSMS(int pd, char *num, char *msg) {
+int SendSingleSMS(int pd, char *num, const char *msg) {
   // Destination
   char cmd[280];
   sprintf(cmd, "AT+CMGW=\"%s\"", num);
@@ -430,7 +430,7 @@ int DeleteSingleSMS(int pd, int mnum) {
  * 
  *       Send a single message (msg) to a single receipient.
  */
-int SendSMS(char *num, char *msg) {
+int SendSMS(char *num, const char *msg) {
   int pd = setupModem();
   if ( pd<0 ) return -1;
 
@@ -469,7 +469,7 @@ int ListSMS() {
  *       Send a single message (msg) to multiple receipients.
  *       Receipients are passed in num_tab array of strings.
  */
-int SendBulkSMS(char num_tab[MAX_BULK_DESTINATIONS][MAX_DESTINATION_LEN], char *msg) {
+int SendBulkSMS(char num_tab[MAX_BULK_DESTINATIONS][MAX_DESTINATION_LEN], const char *msg) {
   int pd = setupModem();
   if ( pd<0 ) return -1;
   if ( debug )
@@ -494,7 +494,7 @@ int SendBulkSMS(char num_tab[MAX_BULK_DESTINATIONS][MAX_DESTINATION_LEN], char *
  *       Send a single message (msg) to multiple receipients.
  *       Receipients are loaded at run time from the data file identified by fname.
  */
-int SendBulkListSMS(char *fname, char *msg) {
+int SendBulkListSMS(char *fname, const char *msg) {
   char num_tab[MAX_BULK_DESTINATIONS][MAX_DESTINATION_LEN];
   int nnums = 0; 	// Receipients index
   FILE *tabd = fopen(fname, "r");
