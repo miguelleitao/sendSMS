@@ -455,8 +455,8 @@ int ListSMS() {
   if ( debug ) printf("List SMS\n");
   int pd = setupModem();
   if ( pd<0 ) return -1;
-  char smsText[8000];
-  int res = GetListSMS(pd, 8000, smsText);
+  char smsText[80002];
+  int res = GetListSMS(pd, 80000, smsText);
   puts(smsText);
   return res;
 }
