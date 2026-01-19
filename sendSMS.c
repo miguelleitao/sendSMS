@@ -570,6 +570,7 @@ int main(int argc, char **argv) {
       case 'l':
         argp++;
         list_sms = argv[argp];
+        if ( ! list_sms ) list_sms = "";
         break;
       case 'x':
         argp++;
