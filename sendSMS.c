@@ -529,14 +529,14 @@ int SendBulkListSMS(char *fname, const char *msg) {
 void Usage() {
   printf("Usage:\n  %s [options] DestNum Mesg\n", "SendSMS");
   printf("    Options:\n");
-  printf("      -q      Quiet\n");
-  printf("      -d      Show debug info\n");
-  printf("      -D      Show full debug info\n");
-  printf("      -l      List All SMS messages\n");
-  printf("      -f      Force previous USB reset\n");
-  printf("      -s      Simulate. Do not send message.\n");
-  printf("      -x num  Delete message num\n");
-  printf("      -i dev  Device. (Default: " DEV_PORT ").\n");
+  printf("      -q           Quiet\n");
+  printf("      -d           Show debug info\n");
+  printf("      -D           Show full debug info\n");
+  printf("      -l folder    List All SMS messages\n");
+  printf("      -f           Force previous USB reset\n");
+  printf("      -s           Simulate. Do not send message.\n");
+  printf("      -x num       Delete message num\n");
+  printf("      -i dev       Device. (Default: " DEV_PORT ").\n");
   printf("\n");
 }
 
