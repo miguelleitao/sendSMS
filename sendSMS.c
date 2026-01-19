@@ -473,7 +473,7 @@ int SendBulkSMS(char num_tab[MAX_BULK_DESTINATIONS][MAX_DESTINATION_LEN], const 
   int pd = setupModem();
   if ( pd<0 ) return -1;
   if ( debug )
-	    printf("SendBulkSMS\n");
+	   printf("SendBulkSMS\n");
   int i;
   for( i=0; i<MAX_BULK_DESTINATIONS ; i++ ) {
 	  char *num = num_tab[i];
@@ -529,8 +529,8 @@ void Usage() {
   printf("      -q      Quiet\n");
   printf("      -d      Show debug info\n");
   printf("      -D      Show full debug info\n");
-  printf("	    -l      List All SMS messages\n");
-  printf("	    -f      Force previous USB reset\n");
+  printf("      -l      List All SMS messages\n");
+  printf("      -f      Force previous USB reset\n");
   printf("      -s      Simulate. Do not send message.\n");
   printf("      -x num  Delete message num\n");
   printf("      -i dev  Device. (Default: " DEV_PORT ").\n");
