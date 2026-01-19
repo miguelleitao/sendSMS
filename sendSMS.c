@@ -26,7 +26,7 @@ static int debug = 1;
 
 #ifndef _LIB_
 static int force_reset = 0;
-static int list_sms = 0;
+char   *list_sms = NULL;
 static int msgDeleteNum = -1;
 #endif
 
@@ -380,10 +380,13 @@ int SendSingleSMS(int pd, char *num, const char *msg) {
  *       Send a single message (msg) to a single receipient.
  *       using a previoulsy prepared modem channel (pd).
  */
-int GetListSMS(int pd, int bSize, char *buffer) {
+int GetListSMS(int pd, int bSize, char *buffer, char *folder) {
   // Destination
   char cmd[280];
-  sprintf(cmd, "AT+CMGL=\"%s\"", "ALL");
+  if ( folder && *folder )
+	sprintf(cmd, "AT+CMGL=\"%s\"", folder);
+  else
+    sprintf(cmd, "AT+CMGL=\"%s\"", "ALL");
   WriteCmd(pd, cmd);
   
   int len = 0;
@@ -452,12 +455,12 @@ int DeleteSMS(int num) {
   return 0;
 }
 
-int ListSMS() {
+int ListSMS(char *folder) {
   if ( debug ) printf("List SMS\n");
   int pd = setupModem();
   if ( pd<0 ) return -1;
   char smsText[80002];
-  int res = GetListSMS(pd, 80000, smsText);
+  int res = GetListSMS(pd, 80000, smsText, folder);
   puts(smsText);
   return res;
 }
@@ -565,7 +568,8 @@ int main(int argc, char **argv) {
         force_reset = 1;
         break;
       case 'l':
-        list_sms = 1;
+        argp++;
+        list_sms = argv[argp];
         break;
       case 'x':
         argp++;
@@ -580,7 +584,7 @@ int main(int argc, char **argv) {
   }
   if ( debug ) printf("sendSMS v%s\n", sendSMS_version);
   if ( force_reset ) usbReset();
-  if ( list_sms ) return ListSMS();
+  if ( list_sms ) return ListSMS(list_sms);
   if ( msgDeleteNum>0 ) return DeleteSMS(msgDeleteNum);
   if ( argc<argp+2 ) {
 	ErrorMsg("Not enough parameters");
