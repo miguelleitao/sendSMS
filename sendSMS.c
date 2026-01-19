@@ -385,25 +385,24 @@ int GetListSMS(int pd, int bSize, char *buffer) {
   char cmd[280];
   sprintf(cmd, "AT+CMGL=\"%s\"", "ALL");
   WriteCmd(pd, cmd);
-  //ReadRes(pd);
   
   int len = 0;
   int rd = -1;
-  char *buf = buffer;
-  while( rd!=0 ) {
-	  rd = read(pd, buf, bSize-len-1);
+  buffer[0] = 0;
+  while( rd!=0 && len<bSize-1 ) {
+	  rd = read(pd, buffer+len, bSize-len-1);
 	  if (rd < 0) {
 		if ( debug ) perror("ReadRes: read error");
-		buf[0] = '\0';
-		return len;
+		return -1;
 	  }
-	  if ( debug>4 ) printf("Got: '%s'\n", buf);
+	  if ( rd==0 ) break;
 	  len += rd;
+	  buffer[len] = 0;
+	  if ( debug>4 ) printf("Got: '%s'\n", buffer);
 	  if ( strstr(buffer, "\r\nOK\r\n") ) break;
-	  buf += rd;
   }
   buffer[len] = 0;
-  if ( rd>0 && debug>3 ) {
+  if ( len>0 && debug>3 ) {
     printf("< %s", buffer);
   }
   return len;
