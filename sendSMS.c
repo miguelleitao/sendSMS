@@ -13,14 +13,14 @@
 #include <string.h>
 #include <errno.h>
 #include <fcntl.h>
-
+#include <iconv.h>
 #include "sendSMS.h"
 
 #define DEV_PORT	"/dev/ttyUSB1"
 
 const int USE_UCS2_TEXT_CODE=1;
 
-char sendSMS_version[] = "1.0.34";
+char sendSMS_version[] = "1.0.35";
 
 static char dev_port[24] = DEV_PORT;
 static int debug = 1;
@@ -101,11 +101,6 @@ set_blocking (int fd, int should_block)
 int usbReset() {
  return system("usbreset 19d2:0117");
 } 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <iconv.h>
-#include <errno.h>
 
 /*
  * Converte UTF-8 para UTF-16BE e devolve string hexadecimal (UCS2 SMS format)
@@ -373,14 +368,12 @@ int setupModem() {
 			close(pd);
 			return -8;
 	  }
-
 	  WriteCmd(pd, "AT+CSMP=17,167,0,8");
-          if ( ! ReadOK(pd) ) {
-                        ErrorMsg("UCS2 text mode not available.");
-                        close(pd);
-                        return -8;
-          }
-
+	  if ( ! ReadOK(pd) ) {
+			ErrorMsg("UCS2 text mode not available.");
+			close(pd);
+			return -9;
+	  }
   }
   return pd;
 }
@@ -410,8 +403,6 @@ int setSimPin(int pd, const char *pin) {
 	}
     return 2;	// Success
 }
-
-
 
  /*!
  *       SendSingleSMS
