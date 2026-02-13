@@ -168,10 +168,15 @@ int utf8_to_ucs2_hex(const char *input, char *output, size_t outsz)
     return converted_len * 2;
 }
 
-int WriteCmd(int fd, const char *msg) {
+int WriteCmdPart(int fd, const char *msg) {
   int wr = 0;
   if ( debug>2 ) printf("> %s", msg );
   wr = write(fd, msg, strlen(msg));
+  return wr;
+}
+
+int WriteCmd(int fd, const char *msg) {
+  int wr = WriteCmdPart(fd, msg);
   wr += write(fd, "\r\n", 2);
   if ( debug>2 ) printf(".\n");
   return wr;
@@ -423,10 +428,11 @@ int SendSingleSMS(int pd, char *num, const char *msg) {
   if ( USE_UCS2_TEXT_CODE ) {
 	  char msgHexUCS2[500];
 	  utf8_to_ucs2_hex(msg, msgHexUCS2, sizeof msgHexUCS2);
-	  WriteCmd(pd, msgHexUCS2);
+	  printf("msg size:%ld\n", strlen(msgHexUCS2));
+	  WriteCmdPart(pd, msgHexUCS2);
   }
   else
-	  WriteCmd(pd, msg);
+	  WriteCmdPart(pd, msg);
   WriteCmd(pd, "\032");
   usleep(100);
 
