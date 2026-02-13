@@ -421,7 +421,7 @@ int SendSingleSMS(int pd, char *num, const char *msg) {
   }
   else
       sprintf(cmd, "AT+CMGW=\"%s\"", num);
-  WriteCmd(pd, cmd);
+  WriteCmdPart(pd, cmd);
   ReadRes(pd);
 
   // Message
