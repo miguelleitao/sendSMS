@@ -18,7 +18,9 @@
 
 #define DEV_PORT	"/dev/ttyUSB1"
 
-char sendSMS_version[] = "1.0.33";
+const int USE_UCS2_TEXT_CODE=1;
+
+char sendSMS_version[] = "1.0.34";
 
 static char dev_port[24] = DEV_PORT;
 static int debug = 1;
@@ -99,6 +101,72 @@ set_blocking (int fd, int should_block)
 int usbReset() {
  return system("usbreset 19d2:0117");
 } 
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <iconv.h>
+#include <errno.h>
+
+/*
+ * Converte UTF-8 para UTF-16BE e devolve string hexadecimal (UCS2 SMS format)
+ *
+ * input  : string UTF-8
+ * output : buffer destino (hex ASCII)
+ * outsz  : tamanho do buffer destino
+ *
+ * return:
+ *   >=0  : número de caracteres hex escritos
+ *   -1   : erro
+ */
+int utf8_to_ucs2_hex(const char *input, char *output, size_t outsz)
+{
+    if (!input || !output)
+        return -1;
+
+    iconv_t cd = iconv_open("UTF-16BE", "UTF-8");
+    if (cd == (iconv_t)-1)
+        return -1;
+
+    size_t inbytes = strlen(input);
+
+    /* UTF-16BE pode usar até 4 bytes por carácter UTF-8 */
+    size_t tmpbuf_size = inbytes * 4;
+    char *tmpbuf = malloc(tmpbuf_size);
+    if (!tmpbuf) {
+        iconv_close(cd);
+        return -1;
+    }
+
+    char *inptr = (char *)input;
+    char *outptr = tmpbuf;
+    size_t outbytes = tmpbuf_size;
+
+    if (iconv(cd, &inptr, &inbytes, &outptr, &outbytes) == (size_t)-1) {
+        free(tmpbuf);
+        iconv_close(cd);
+        return -1;
+    }
+
+    size_t converted_len = tmpbuf_size - outbytes;
+
+    /* Precisamos de 2 chars hex por byte */
+    if (outsz < converted_len * 2 + 1) {
+        free(tmpbuf);
+        iconv_close(cd);
+        return -1;
+    }
+
+    for (size_t i = 0; i < converted_len; i++) {
+        sprintf(output + (i * 2), "%02X", (unsigned char)tmpbuf[i]);
+    }
+
+    output[converted_len * 2] = '\0';
+
+    free(tmpbuf);
+    iconv_close(cd);
+
+    return converted_len * 2;
+}
 
 int WriteCmd(int fd, const char *msg) {
   int wr = 0;
@@ -291,6 +359,16 @@ int setupModem() {
         }
         printf("Extended error reporting mode.\n");
   }
+  
+  // Select UCS2 text mode
+  if ( USE_UCS2_TEXT_CODE ) {
+	  WriteCmd(pd, "AT+CSCS=\"UCS2\"");
+	  if ( ! ReadOK(pd) ) {
+			ErrorMsg("UCS2 text mode not available.");
+			close(pd);
+			return -8;
+	  }
+  }
   return pd;
 }
 
@@ -330,13 +408,25 @@ int setSimPin(int pd, const char *pin) {
  */
 int SendSingleSMS(int pd, char *num, const char *msg) {
   // Destination
-  char cmd[280];
-  sprintf(cmd, "AT+CMGW=\"%s\"", num);
+  char cmd[512];
+  if ( USE_UCS2_TEXT_CODE ) {
+	  char numHexUCS2[129];
+	  utf8_to_ucs2_hex(num, numHexUCS2, sizeof numHexUCS2);
+	  sprintf(cmd, "AT+CMGW=\"%s\"", numHexUCS2);
+  }
+  else
+      sprintf(cmd, "AT+CMGW=\"%s\"", num);
   WriteCmd(pd, cmd);
   ReadRes(pd);
 
   // Message
-  WriteCmd(pd, msg);
+  if ( USE_UCS2_TEXT_CODE ) {
+	  char msgHexUCS2[500];
+	  utf8_to_ucs2_hex(msg, msgHexUCS2, sizeof msgHexUCS2);
+	  WriteCmd(pd, msgHexUCS2);
+  }
+  else
+	  WriteCmd(pd, msg);
   WriteCmd(pd, "\032");
   usleep(100);
 
@@ -433,11 +523,11 @@ int DeleteSingleSMS(int pd, int mnum) {
  * 
  *       Send a single message (msg) to a single receipient.
  */
-int SendSMS(char *num, const char *msg) {
+int SendSMS(char *destNum, const char *msg) {
   int pd = setupModem();
   if ( pd<0 ) return -1;
 
-  SendSingleSMS(pd, num, msg);
+  SendSingleSMS(pd, destNum, msg);
   close(pd);
   return 0;
 }
