@@ -25,7 +25,6 @@ char sendSMS_version[] = "1.0.36";
 static char dev_port[24] = DEV_PORT;
 static int debug = 1;
 
-
 #ifndef _LIB_
 static int force_reset = 0;
 char   *list_sms = NULL;
