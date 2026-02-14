@@ -20,7 +20,7 @@
 
 const int USE_UCS2_TEXT_CODE=1;
 
-char sendSMS_version[] = "1.0.35";
+char sendSMS_version[] = "1.0.36";
 
 static char dev_port[24] = DEV_PORT;
 static int debug = 1;
@@ -161,6 +161,55 @@ int utf8_to_ucs2_hex(const char *input, char *output, size_t outsz)
     iconv_close(cd);
 
     return converted_len * 2;
+}
+
+char latin1_map(unsigned int codepoint)
+{
+    switch (codepoint) {
+        case 0x00E0: return 'a'; // à
+        case 0x00E1: return 'a'; // á
+        case 0x00E2: return 'a'; // â
+        case 0x00E3: return 'a'; // ã
+        case 0x00E9: return 'e'; // é
+        case 0x00EA: return 'e'; // ê
+        case 0x00ED: return 'i'; // í
+        case 0x00F3: return 'o'; // ó
+        case 0x00F5: return 'o'; // õ
+        case 0x00FA: return 'u'; // ú
+        case 0x00E7: return 'c'; // ç
+        default: return '?';
+    }
+}
+int utf8_decode(const unsigned char *s, unsigned int *cp)
+{
+    if (s[0] < 0x80) {
+        *cp = s[0];
+        return 1;
+    } else if ((s[0] & 0xE0) == 0xC0) {
+        *cp = ((s[0] & 0x1F) << 6) |
+               (s[1] & 0x3F);
+        return 2;
+    } else if ((s[0] & 0xF0) == 0xE0) {
+        *cp = ((s[0] & 0x0F) << 12) |
+              ((s[1] & 0x3F) << 6) |
+               (s[2] & 0x3F);
+        return 3;
+    }
+    return -1;
+}
+void utf8_to_ascii_translit(const char *in, char *out)
+{
+    while (*in) {
+        unsigned int cp;
+        int len = utf8_decode((const unsigned char*)in, &cp);
+        if (len <= 0) break;
+        if (cp < 0x80)
+            *out++ = cp;
+        else
+            *out++ = latin1_map(cp);
+        in += len;
+    }
+    *out = '\0';
 }
 
 int WriteCmdPart(int fd, const char *msg) {
@@ -413,7 +462,8 @@ int setSimPin(int pd, const char *pin) {
 int SendSingleSMS(int pd, char *num, const char *msg) {
   // Destination
   char cmd[512];
-  if ( USE_UCS2_TEXT_CODE ) {
+  int msgLen = strlen(msg);
+  if ( USE_UCS2_TEXT_CODE && msgLen<65 ) {
 	  char numHexUCS2[129];
 	  utf8_to_ucs2_hex(num, numHexUCS2, sizeof numHexUCS2);
 	  sprintf(cmd, "AT+CMGW=\"%s\"", numHexUCS2);
@@ -424,14 +474,17 @@ int SendSingleSMS(int pd, char *num, const char *msg) {
   ReadRes(pd);
 
   // Message
-  if ( USE_UCS2_TEXT_CODE ) {
-	  char msgHexUCS2[500];
+  if ( USE_UCS2_TEXT_CODE && msgLen<65 ) {
+	  char msgHexUCS2[200];
 	  utf8_to_ucs2_hex(msg, msgHexUCS2, sizeof msgHexUCS2);
-	  printf("msg size:%ld\n", strlen(msgHexUCS2));
+	  printf("UCS2 msg size:%ld\n", strlen(msgHexUCS2));
 	  WriteCmdPart(pd, msgHexUCS2);
   }
-  else
-	  WriteCmdPart(pd, msg);
+  else {
+	  char msgAscii[200];
+	  utf8_to_ascii_translit(msg, msgAscii);
+	  WriteCmdPart(pd, msgAscii);
+  }
   WriteCmd(pd, "\032");
   usleep(100);
 
