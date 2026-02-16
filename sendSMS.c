@@ -496,7 +496,7 @@ int SendSingleSMS(int pd, char *num, const char *msg) {
 if ( debug>3) printf("Num send. msg:%s\n", msg);
   // Message
   if ( USE_UCS2_TEXT_CODE && msgLen<65 ) {
-	  char msgHexUCS2[200];
+	  char msgHexUCS2[400];
 	  utf8_to_ucs2_hex(msg, msgHexUCS2, sizeof msgHexUCS2);
 	  if ( debug>1) printf("UCS2 msg size:%ld\n", strlen(msgHexUCS2));
 	  WriteCmdPart(pd, msgHexUCS2);
