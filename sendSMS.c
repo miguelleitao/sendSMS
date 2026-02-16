@@ -18,7 +18,7 @@
 
 #define DEV_PORT	"/dev/ttyUSB1"
 
-const int USE_UCS2_TEXT_CODE=1;
+int USE_UCS2_TEXT_CODE = 1;
 
 char sendSMS_version[] = "1.0.36";
 
@@ -353,7 +353,23 @@ int resetModem(int pd) {
 	return 0;
 }
 
-	
+int selectTextModeUSC2(int pd) {
+    // Select UCS2 text mode
+	WriteCmd(pd, "AT+CSCS=\"UCS2\"");
+	if ( ! ReadOK(pd) ) {
+		ErrorMsg("UCS2 text mode not available.");
+		close(pd);
+		return -8;
+	}
+	WriteCmd(pd, "AT+CSMP=17,167,0,8");
+	if ( ! ReadOK(pd) ) {
+		ErrorMsg("UCS2 text mode not available.");
+		close(pd);
+		return -9;
+	}
+    return 0;
+}
+  
 int setupModem() {
   int nRun;
   int pd = -1;
@@ -408,21 +424,6 @@ int setupModem() {
         printf("Extended error reporting mode.\n");
   }
   
-  // Select UCS2 text mode
-  if ( USE_UCS2_TEXT_CODE ) {
-	  WriteCmd(pd, "AT+CSCS=\"UCS2\"");
-	  if ( ! ReadOK(pd) ) {
-			ErrorMsg("UCS2 text mode not available.");
-			close(pd);
-			return -8;
-	  }
-	  WriteCmd(pd, "AT+CSMP=17,167,0,8");
-	  if ( ! ReadOK(pd) ) {
-			ErrorMsg("UCS2 text mode not available.");
-			close(pd);
-			return -9;
-	  }
-  }
   return pd;
 }
 
@@ -583,12 +584,16 @@ int DeleteSingleSMS(int pd, int mnum) {
  *       Send a single message (msg) to a single receipient.
  */
 int SendSMS(char *destNum, const char *msg) {
-  int pd = setupModem();
-  if ( pd<0 ) return -1;
-
-  SendSingleSMS(pd, destNum, msg);
-  close(pd);
-  return 0;
+    int pd = setupModem();
+    if ( pd<0 ) return -1;
+  
+    USE_UCS2_TEXT_CODE &= ( strlen(msg)<64 );
+    if ( USE_UCS2_TEXT_CODE )
+		selectTextModeUSC2(pd);
+	  
+    SendSingleSMS(pd, destNum, msg);
+    close(pd);
+    return 0;
 }
 
  /*!
@@ -743,7 +748,7 @@ int main(int argc, char **argv) {
   }
   if ( argv[argp][0] == '@' )
       return SendBulkListSMS(argv[argp]+1, argv[argp+1]);
-  return SendSMS(argv[argp],argv[argp+1]);
+  return SendSMS(argv[argp], argv[argp+1]);
 }
 
 #endif
