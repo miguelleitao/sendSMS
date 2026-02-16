@@ -462,6 +462,8 @@ int SendSingleSMS(int pd, char *num, const char *msg) {
   // Destination
   char cmd[512];
   int msgLen = strlen(msg);
+  if ( debug>1 ) 
+	  printf(" msg size:%d\n", msgLen);
   if ( USE_UCS2_TEXT_CODE && msgLen<65 ) {
 	  char numHexUCS2[129];
 	  utf8_to_ucs2_hex(num, numHexUCS2, sizeof numHexUCS2);
@@ -476,7 +478,7 @@ int SendSingleSMS(int pd, char *num, const char *msg) {
   if ( USE_UCS2_TEXT_CODE && msgLen<65 ) {
 	  char msgHexUCS2[200];
 	  utf8_to_ucs2_hex(msg, msgHexUCS2, sizeof msgHexUCS2);
-	  printf("UCS2 msg size:%ld\n", strlen(msgHexUCS2));
+	  if ( debug>1) printf("UCS2 msg size:%ld\n", strlen(msgHexUCS2));
 	  WriteCmdPart(pd, msgHexUCS2);
   }
   else {
