@@ -136,6 +136,7 @@ int utf8_to_ucs2_hex(const char *input, char *output, size_t outsz)
     size_t outbytes = tmpbuf_size;
 
     if (iconv(cd, &inptr, &inbytes, &outptr, &outbytes) == (size_t)-1) {
+		if ( debug ) fprintf(stderr, "utf8_to_ucs2_hex: conversion error\n");
         free(tmpbuf);
         iconv_close(cd);
         return -1;
@@ -145,6 +146,7 @@ int utf8_to_ucs2_hex(const char *input, char *output, size_t outsz)
 
     /* Precisamos de 2 chars hex por byte */
     if (outsz < converted_len * 2 + 1) {
+		if ( debug ) fprintf(stderr, "utf8_to_ucs2_hex: conversion not complete\n");
         free(tmpbuf);
         iconv_close(cd);
         return -1;
