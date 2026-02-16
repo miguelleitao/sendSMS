@@ -9,8 +9,13 @@
 #define MAX_BULK_DESTINATIONS 65
 #define MAX_DESTINATION_LEN 22
 
+extern char sendSMS_version[];
+
 int setupModem();
 int SendSingleSMS(int pd, char *num, char *msg);
 int SendSMS(char *num, char *msg);
 int SendBulkSMS(char num_tab[MAX_BULK_DESTINATIONS][MAX_DESTINATION_LEN], char *msg);
 int SendBulkListSMS(char *fname, char *msg);
+
+int ListSMS();
+int GetListSMS(int pd, int bLen, char *buffer);
