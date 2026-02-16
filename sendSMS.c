@@ -471,9 +471,10 @@ int SendSingleSMS(int pd, char *num, const char *msg) {
 	  sprintf(cmd, "AT+CMGW=\"%s\"", numHexUCS2);
       WriteCmd(pd, cmd);
   }
-  else
+  else {
       sprintf(cmd, "AT+CMGW=\"%s\"\r\n", num);
       WriteCmdPart(pd, cmd);
+  }
   ReadRes(pd);
 
   // Message
