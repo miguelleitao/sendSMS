@@ -369,7 +369,24 @@ int selectTextModeUSC2(int pd) {
 	}
     return 0;
 }
-  
+
+int selectTextModeAscii(int pd) {
+    // Select ASCII text mode
+	WriteCmd(pd, "AT+CSCS=\"GSM\"");
+	if ( ! ReadOK(pd) ) {
+		ErrorMsg("GSM/ASCII text mode not available.");
+		close(pd);
+		return -8;
+	}
+	WriteCmd(pd, "AT+CSMP=17,167,0,0");
+	if ( ! ReadOK(pd) ) {
+		ErrorMsg("GSM/ASCII text mode not available.");
+		close(pd);
+		return -9;
+	}
+    return 0;
+}
+
 int setupModem() {
   int nRun;
   int pd = -1;
@@ -423,7 +440,6 @@ int setupModem() {
         }
         printf("Extended error reporting mode.\n");
   }
-  
   return pd;
 }
 
@@ -469,12 +485,11 @@ int SendSingleSMS(int pd, char *num, const char *msg) {
 	  char numHexUCS2[129];
 	  utf8_to_ucs2_hex(num, numHexUCS2, sizeof numHexUCS2);
 	  sprintf(cmd, "AT+CMGW=\"%s\"", numHexUCS2);
-      WriteCmd(pd, cmd);
   }
   else {
-      sprintf(cmd, "AT+CMGW=\"%s\"\r\n", num);
-      WriteCmdPart(pd, cmd);
+      sprintf(cmd, "AT+CMGW=\"%s\"", num);
   }
+  WriteCmd(pd, cmd);
   ReadRes(pd);
 
   // Message
@@ -592,6 +607,8 @@ int SendSMS(char *destNum, const char *msg) {
     USE_UCS2_TEXT_CODE &= ( strlen(msg)<64 );
     if ( USE_UCS2_TEXT_CODE )
 		selectTextModeUSC2(pd);
+	else 
+		selectTextModeAscii(pd);
 	  
     SendSingleSMS(pd, destNum, msg);
     close(pd);
