@@ -12,10 +12,10 @@
 extern char sendSMS_version[];
 
 int setupModem();
-int SendSingleSMS(int pd, char *num, char *msg);
-int SendSMS(char *num, char *msg);
-int SendBulkSMS(char num_tab[MAX_BULK_DESTINATIONS][MAX_DESTINATION_LEN], char *msg);
-int SendBulkListSMS(char *fname, char *msg);
+int SendSingleSMS(int pd, char *num, const char *msg);
+int SendSMS(char *num, const char *msg);
+int SendBulkSMS(char num_tab[MAX_BULK_DESTINATIONS][MAX_DESTINATION_LEN], const char *msg);
+int SendBulkListSMS(char *fname, const char *msg);
 
 int ListSMS();
 int GetListSMS(int pd, int bLen, char *buffer);

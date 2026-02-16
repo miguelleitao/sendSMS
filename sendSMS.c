@@ -13,17 +13,24 @@
 #include <string.h>
 #include <errno.h>
 #include <fcntl.h>
-
+#include <iconv.h>
 #include "sendSMS.h"
 
 #define DEV_PORT	"/dev/ttyUSB1"
 
-char sendSMS_version[] = "1.0.31";
+const int USE_UCS2_TEXT_CODE=1;
+
+char sendSMS_version[] = "1.0.36";
 
 static char dev_port[24] = DEV_PORT;
 static int debug = 1;
+
+#ifndef _LIB_
 static int force_reset = 0;
-static int list_sms = 0;
+char   *list_sms = NULL;
+static int msgDeleteNum = -1;
+#endif
+
 static int simul = 0;
 
 static void ErrorMsg(char *msg) {
@@ -61,7 +68,7 @@ set_interface_attribs (int fd, int speed, int parity)
         tty.c_cflag &= ~(PARENB | PARODD);      // shut off parity
         tty.c_cflag |= parity;
         tty.c_cflag &= ~CSTOPB;
-// 	tty.c_cflag |= CSTOPB;
+		// 	tty.c_cflag |= CSTOPB;
         tty.c_cflag &= ~CRTSCTS;
 
         if (tcsetattr (fd, TCSANOW, &tty) != 0) {
@@ -94,11 +101,126 @@ int usbReset() {
  return system("usbreset 19d2:0117");
 } 
 
-int WriteCmd(int fd, const char *msg) {
+/*
+ * Converte UTF-8 para UTF-16BE e devolve string hexadecimal (UCS2 SMS format)
+ *
+ * input  : string UTF-8
+ * output : buffer destino (hex ASCII)
+ * outsz  : tamanho do buffer destino
+ *
+ * return:
+ *   >=0  : número de caracteres hex escritos
+ *   -1   : erro
+ */
+int utf8_to_ucs2_hex(const char *input, char *output, size_t outsz)
+{
+    if (!input || !output)
+        return -1;
+
+    iconv_t cd = iconv_open("UTF-16BE", "UTF-8");
+    if (cd == (iconv_t)-1)
+        return -1;
+
+    size_t inbytes = strlen(input);
+
+    /* UTF-16BE pode usar até 4 bytes por carácter UTF-8 */
+    size_t tmpbuf_size = inbytes * 4;
+    char *tmpbuf = malloc(tmpbuf_size);
+    if (!tmpbuf) {
+        iconv_close(cd);
+        return -1;
+    }
+
+    char *inptr = (char *)input;
+    char *outptr = tmpbuf;
+    size_t outbytes = tmpbuf_size;
+
+    if (iconv(cd, &inptr, &inbytes, &outptr, &outbytes) == (size_t)-1) {
+        free(tmpbuf);
+        iconv_close(cd);
+        return -1;
+    }
+
+    size_t converted_len = tmpbuf_size - outbytes;
+
+    /* Precisamos de 2 chars hex por byte */
+    if (outsz < converted_len * 2 + 1) {
+        free(tmpbuf);
+        iconv_close(cd);
+        return -1;
+    }
+
+    for (size_t i = 0; i < converted_len; i++) {
+        sprintf(output + (i * 2), "%02X", (unsigned char)tmpbuf[i]);
+    }
+
+    output[converted_len * 2] = '\0';
+
+    free(tmpbuf);
+    iconv_close(cd);
+
+    return converted_len * 2;
+}
+
+char latin1_map(unsigned int codepoint)
+{
+    switch (codepoint) {
+        case 0x00E0: return 'a'; // à
+        case 0x00E1: return 'a'; // á
+        case 0x00E2: return 'a'; // â
+        case 0x00E3: return 'a'; // ã
+        case 0x00E9: return 'e'; // é
+        case 0x00EA: return 'e'; // ê
+        case 0x00ED: return 'i'; // í
+        case 0x00F3: return 'o'; // ó
+        case 0x00F5: return 'o'; // õ
+        case 0x00FA: return 'u'; // ú
+        case 0x00E7: return 'c'; // ç
+        default: return '?';
+    }
+}
+int utf8_decode(const unsigned char *s, unsigned int *cp)
+{
+    if (s[0] < 0x80) {
+        *cp = s[0];
+        return 1;
+    } else if ((s[0] & 0xE0) == 0xC0) {
+        *cp = ((s[0] & 0x1F) << 6) |
+               (s[1] & 0x3F);
+        return 2;
+    } else if ((s[0] & 0xF0) == 0xE0) {
+        *cp = ((s[0] & 0x0F) << 12) |
+              ((s[1] & 0x3F) << 6) |
+               (s[2] & 0x3F);
+        return 3;
+    }
+    return -1;
+}
+void utf8_to_ascii_translit(const char *in, char *out)
+{
+    while (*in) {
+        unsigned int cp;
+        int len = utf8_decode((const unsigned char*)in, &cp);
+        if (len <= 0) break;
+        if (cp < 0x80)
+            *out++ = cp;
+        else
+            *out++ = latin1_map(cp);
+        in += len;
+    }
+    *out = '\0';
+}
+
+int WriteCmdPart(int fd, const char *msg) {
   int wr = 0;
   if ( debug>2 ) printf("> %s", msg );
   wr = write(fd, msg, strlen(msg));
-  wr += write(fd, "\r\n", 2);
+  return wr;
+}
+
+int WriteCmd(int fd, const char *msg) {
+  int wr = WriteCmdPart(fd, msg);
+  wr += write(fd, "\r", 2);
   if ( debug>2 ) printf(".\n");
   return wr;
 }
@@ -285,6 +407,22 @@ int setupModem() {
         }
         printf("Extended error reporting mode.\n");
   }
+  
+  // Select UCS2 text mode
+  if ( USE_UCS2_TEXT_CODE ) {
+	  WriteCmd(pd, "AT+CSCS=\"UCS2\"");
+	  if ( ! ReadOK(pd) ) {
+			ErrorMsg("UCS2 text mode not available.");
+			close(pd);
+			return -8;
+	  }
+	  WriteCmd(pd, "AT+CSMP=17,167,0,8");
+	  if ( ! ReadOK(pd) ) {
+			ErrorMsg("UCS2 text mode not available.");
+			close(pd);
+			return -9;
+	  }
+  }
   return pd;
 }
 
@@ -314,23 +452,38 @@ int setSimPin(int pd, const char *pin) {
     return 2;	// Success
 }
 
-
-
  /*!
  *       SendSingleSMS
  * 
  *       Send a single message (msg) to a single receipient.
  *       using a previoulsy prepared modem channel (pd).
  */
-int SendSingleSMS(int pd, char *num, char *msg) {
+int SendSingleSMS(int pd, char *num, const char *msg) {
   // Destination
-  char cmd[280];
-  sprintf(cmd, "AT+CMGW=\"%s\"", num);
+  char cmd[512];
+  int msgLen = strlen(msg);
+  if ( USE_UCS2_TEXT_CODE && msgLen<65 ) {
+	  char numHexUCS2[129];
+	  utf8_to_ucs2_hex(num, numHexUCS2, sizeof numHexUCS2);
+	  sprintf(cmd, "AT+CMGW=\"%s\"", numHexUCS2);
+  }
+  else
+      sprintf(cmd, "AT+CMGW=\"%s\"", num);
   WriteCmd(pd, cmd);
   ReadRes(pd);
 
   // Message
-  WriteCmd(pd, msg);
+  if ( USE_UCS2_TEXT_CODE && msgLen<65 ) {
+	  char msgHexUCS2[200];
+	  utf8_to_ucs2_hex(msg, msgHexUCS2, sizeof msgHexUCS2);
+	  printf("UCS2 msg size:%ld\n", strlen(msgHexUCS2));
+	  WriteCmdPart(pd, msgHexUCS2);
+  }
+  else {
+	  char msgAscii[200];
+	  utf8_to_ascii_translit(msg, msgAscii);
+	  WriteCmdPart(pd, msgAscii);
+  }
   WriteCmd(pd, "\032");
   usleep(100);
 
@@ -374,28 +527,33 @@ int SendSingleSMS(int pd, char *num, char *msg) {
  *       Send a single message (msg) to a single receipient.
  *       using a previoulsy prepared modem channel (pd).
  */
-int GetListSMS(int pd, int bSize, char *buffer) {
+int GetListSMS(int pd, int bSize, char *buffer, char *folder) {
   // Destination
   char cmd[280];
-  sprintf(cmd, "AT+CMGL=\"%s\"", "ALL");
+  if ( folder && *folder )
+	sprintf(cmd, "AT+CMGL=\"%s\"", folder);
+  else
+    sprintf(cmd, "AT+CMGL=\"%s\"", "ALL");
   WriteCmd(pd, cmd);
-  //ReadRes(pd);
   
   int len = 0;
   int rd = -1;
-  char *buf = buffer;
-  while( rd!=0 ) {
-	  rd = read(pd, buf, bSize-len-1);
+  buffer[0] = 0;
+  while( rd!=0 && len<bSize-1 ) {
+	  rd = read(pd, buffer+len, bSize-len-1);
 	  if (rd < 0) {
 		if ( debug ) perror("ReadRes: read error");
-		buf[0] = '\0';
-		return len;
+		return -1;
 	  }
-	  buf += rd;
+	  if ( rd==0 ) break;
 	  len += rd;
+	  buffer[len] = 0;
+	  if ( debug>4 ) printf("Got: '%s'\n", buffer);
+	  if ( strstr(buffer, "\r\nOK\r\n") ) break;
+	  if ( strstr(buffer, "\nOK\n") ) break;
   }
   buffer[len] = 0;
-  if ( rd>0 && debug>3 ) {
+  if ( len>0 && debug>3 ) {
     printf("< %s", buffer);
   }
   return len;
@@ -422,11 +580,11 @@ int DeleteSingleSMS(int pd, int mnum) {
  * 
  *       Send a single message (msg) to a single receipient.
  */
-int SendSMS(char *num, char *msg) {
+int SendSMS(char *destNum, const char *msg) {
   int pd = setupModem();
   if ( pd<0 ) return -1;
 
-  SendSingleSMS(pd, num, msg);
+  SendSingleSMS(pd, destNum, msg);
   close(pd);
   return 0;
 }
@@ -436,20 +594,20 @@ int SendSMS(char *num, char *msg) {
  * 
  *       Delete a single message (num).
  */
-int DeleteSMS(char *num) {
+int DeleteSMS(int num) {
   int pd = setupModem();
   if ( pd<0 ) return -1;
-  DeleteSingleSMS(pd, atoi(num));
+  DeleteSingleSMS(pd, num);
   close(pd);
   return 0;
 }
 
-int ListSMS() {
+int ListSMS(char *folder) {
   if ( debug ) printf("List SMS\n");
   int pd = setupModem();
   if ( pd<0 ) return -1;
-  char smsText[8000];
-  int res = GetListSMS(pd, 8000, smsText);
+  char smsText[80002];
+  int res = GetListSMS(pd, 80000, smsText, folder);
   puts(smsText);
   return res;
 }
@@ -461,12 +619,13 @@ int ListSMS() {
  *       Send a single message (msg) to multiple receipients.
  *       Receipients are passed in num_tab array of strings.
  */
-int SendBulkSMS(char num_tab[MAX_BULK_DESTINATIONS][MAX_DESTINATION_LEN], char *msg) {
+int SendBulkSMS(char num_tab[MAX_BULK_DESTINATIONS][MAX_DESTINATION_LEN], const char *msg) {
   int pd = setupModem();
   if ( pd<0 ) return -1;
   if ( debug )
-	    printf("SendBulkSMS\n");
-  for( int i=0; i<MAX_BULK_DESTINATIONS ; i++ ) {
+	   printf("SendBulkSMS\n");
+  int i;
+  for( i=0; i<MAX_BULK_DESTINATIONS ; i++ ) {
 	  char *num = num_tab[i];
 	  if ( ! num || ! *num ) break;
 	  if ( debug )
@@ -476,7 +635,7 @@ int SendBulkSMS(char num_tab[MAX_BULK_DESTINATIONS][MAX_DESTINATION_LEN], char *
       usleep(600000);
   }
   close(pd);
-  return 0;
+  return i;
 }
 
 /*!
@@ -485,7 +644,7 @@ int SendBulkSMS(char num_tab[MAX_BULK_DESTINATIONS][MAX_DESTINATION_LEN], char *
  *       Send a single message (msg) to multiple receipients.
  *       Receipients are loaded at run time from the data file identified by fname.
  */
-int SendBulkListSMS(char *fname, char *msg) {
+int SendBulkListSMS(char *fname, const char *msg) {
   char num_tab[MAX_BULK_DESTINATIONS][MAX_DESTINATION_LEN];
   int nnums = 0; 	// Receipients index
   FILE *tabd = fopen(fname, "r");
@@ -517,13 +676,14 @@ int SendBulkListSMS(char *fname, char *msg) {
 void Usage() {
   printf("Usage:\n  %s [options] DestNum Mesg\n", "SendSMS");
   printf("    Options:\n");
-  printf("      -q      Quiet\n");
-  printf("      -d      Show debug info\n");
-  printf("      -D      Show full debug info\n");
-  printf("	-l	List All SMS messages\n");
-  printf("	-f	Force previous USB reset\n");
-  printf("      -s      Simulate. Do not send message.\n");
-  printf("      -i dev  Device. (Default: " DEV_PORT ").\n");
+  printf("      -q           Quiet\n");
+  printf("      -d           Show debug info\n");
+  printf("      -D           Show full debug info\n");
+  printf("      -l folder    List All SMS messages\n");
+  printf("      -f           Force previous USB reset\n");
+  printf("      -s           Simulate. Do not send message.\n");
+  printf("      -x num       Delete message num\n");
+  printf("      -i dev       Device. (Default: " DEV_PORT ").\n");
   printf("\n");
 }
 
@@ -552,11 +712,17 @@ int main(int argc, char **argv) {
         strncpy(dev_port, argv[argp], 22);
         break;
       case 'f':
-	force_reset = 1;
-	break;
+        force_reset = 1;
+        break;
       case 'l':
-	list_sms = 1;
-	break;
+        argp++;
+        list_sms = argv[argp];
+        if ( ! list_sms ) list_sms = "";
+        break;
+      case 'x':
+        argp++;
+        msgDeleteNum = atoi(argv[argp]);
+        break;
       default:
         fprintf(stderr,"Bad option '-%c'\n", argv[argp][1]);
         Usage();
@@ -566,7 +732,8 @@ int main(int argc, char **argv) {
   }
   if ( debug ) printf("sendSMS v%s\n", sendSMS_version);
   if ( force_reset ) usbReset();
-  if ( list_sms ) return ListSMS();
+  if ( list_sms ) return ListSMS(list_sms);
+  if ( msgDeleteNum>0 ) return DeleteSMS(msgDeleteNum);
   if ( argc<argp+2 ) {
 	ErrorMsg("Not enough parameters");
 	  Usage();
