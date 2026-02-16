@@ -465,14 +465,15 @@ int SendSingleSMS(int pd, char *num, const char *msg) {
   int msgLen = strlen(msg);
   if ( debug>1 ) 
 	  printf(" msg size:%d\n", msgLen);
-  if ( USE_UCS2_TEXT_CODE && msgLen<65 ) {
+  if ( USE_UCS2_TEXT_CODE  ) {
 	  char numHexUCS2[129];
 	  utf8_to_ucs2_hex(num, numHexUCS2, sizeof numHexUCS2);
 	  sprintf(cmd, "AT+CMGW=\"%s\"", numHexUCS2);
+      WriteCmd(pd, cmd);
   }
   else
-      sprintf(cmd, "AT+CMGW=\"%s\"", num);
-  WriteCmd(pd, cmd);
+      sprintf(cmd, "AT+CMGW=\"%s\"\r\n", num);
+      WriteCmdPart(pd, cmd);
   ReadRes(pd);
 
   // Message
