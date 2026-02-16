@@ -495,7 +495,7 @@ int SendSingleSMS(int pd, char *num, const char *msg) {
   ReadRes(pd);
 if ( debug>3) printf("Num send. msg:%s\n", msg);
   // Message
-  if ( USE_UCS2_TEXT_CODE && msgLen<65 ) {
+  if ( USE_UCS2_TEXT_CODE ) {
 	  char msgHexUCS2[400];
 	  utf8_to_ucs2_hex(msg, msgHexUCS2, sizeof msgHexUCS2);
 	  if ( debug>1) printf("UCS2 msg size:%ld\n", strlen(msgHexUCS2));
@@ -606,7 +606,7 @@ int SendSMS(char *destNum, const char *msg) {
     int pd = setupModem();
     if ( pd<0 ) return -1;
   
-    USE_UCS2_TEXT_CODE &= ( strlen(msg)<64 );
+    USE_UCS2_TEXT_CODE = ( strlen(msg)<64 );
     if ( USE_UCS2_TEXT_CODE )
 		selectTextModeUSC2(pd);
 	else 
