@@ -18,4 +18,4 @@ int SendBulkSMS(char num_tab[MAX_BULK_DESTINATIONS][MAX_DESTINATION_LEN], const 
 int SendBulkListSMS(char *fname, const char *msg);
 
 int ListSMS();
-int GetListSMS(int pd, int bLen, char *buffer);
+int GetListSMS(int pd, int bLen, char *buffer, char *folder);
